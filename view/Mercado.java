@@ -1,37 +1,67 @@
 package view;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 
+import model.Carrinho;
 import model.Produto;
-import utilitario.Utils;
+import util.Utilitario;
 
+/**
+ * "Moreira's Shop"
+ * 
+ * Sistema de compra para um mercado fictÃ­cio.
+ * 
+ * O programa permite cadastrar produtos, listar, comprar (inserindo
+ * no carrinho de compras) e vizualizar carrinhos.
+ * Os produtos sÃ£o inseridos e consultados de um banco de dados mySQL
+ * 
+ * 
+ * @author Renan Moreira
+ * 
+ */
 public class Mercado {
-	private static Scanner sc = new Scanner (System.in);
-	private static List<Produto> produtos;
-	private static Map<Produto, Integer> carrinho;
 	
-	public static void main (String [] args) {
-		produtos = new ArrayList<Produto>();
-		carrinho = new HashMap<Produto, Integer>();
-		produtos.add(new Produto("Sabão", 25.90));
-		produtos.add(new Produto("Escova", 9.90));
-		produtos.add(new Produto("Amaciante de roupa", 25.90));
-		produtos.add(new Produto("Filé de peixe", 50));
-		produtos.add(new Produto("Bolo de amêndoas", 30.50));
+	private static Scanner sc = new Scanner (System.in);
+	private static List<Carrinho> carrinho = new ArrayList<>();
+	static double valorTotal = 0;
+
+	//private static List<> carrinhos = new ArrayList<>();
+	static Connection conexao = null;
+	static String listar = "SELECT codigo, nome, preco FROM produtos";
+	static String inserir = "INSERT INTO produtos (nome, preco) VALUES (?,?)";
+	
+	public static void main (String [] args) throws SQLException {
+			
+		try {
+			Class.forName("com.mysql.cj.jdbc.Driver");
+			conexao = DriverManager.getConnection(
+					"jdbc:mysql://localhost:3306/mercado", "renan","1234");
 		
-		System.out.println("=========================================================================================");
-		System.out.println("================================ Bem Vindo (a) ==========================================");
-		System.out.println("=============================== Moreira's Shop ==========================================");
-		Menu();
-		
+			System.out.println("=========================================================================================");
+			System.out.println("================================ Bem Vindo (a) ==========================================");
+			System.out.println("=============================== Moreira's Shop ==========================================");
+			Mercado.menu();
+			
+		}catch (ClassNotFoundException e) {
+			System.out.println("NÃ£o foi possÃ­vel se conectar com o banco de dados 'Mercado'\n" + e.getMessage());
+		}finally {
+			if (conexao != null) {
+				conexao.close();
+			}
+		}
 	}
 	
-	private static void Menu() {
-	
+	private static void menu() throws SQLException {
 		System.out.println("=========================================================================================");
 		System.out.println("\n");
 		System.out.println("1 - Listar produtos");
@@ -43,45 +73,51 @@ public class Mercado {
 		try{
 			escolha_usuario = Integer.parseInt(sc.nextLine());
 			}catch (Exception e) {
-			System.out.println("Opção escolha incorreta, escolha uma opção correta.");
-			Mercado.Menu();
+			System.out.println("Escolha incorreta, escolha uma opÃ§Ã£o correta.");
+			Utilitario.Pausar(3);
+			Mercado.menu();
 		}
 		switch (escolha_usuario) {
 		case 1 :
 			System.out.println("================= Lista de produtos ============================");
-
 			Mercado.ListarProdutos();
 			break;
 		case 2:
 			System.out.println("================= Cadastro de Produtos ============================");
 			Mercado.CadastrarProdutos();
 			break;
-		case 4:
-			Mercado.VisualizarCarrinho();
-			break;
 		case 3:
 			Mercado.ComprarProdutos();
 			break;
+		case 4:
+			Mercado.VisualizarCarrinho();
+			break;
 		case 5:
-			System.out.println("A Moreira's Shop agradece sua presença. Volte sempre!!");
-			Utils.Pausar(5);
+			System.out.println("A Moreira's Shop agradece sua presenÃ¯Ã§a. Volte sempre!!");
+			Utilitario.Pausar(5);
 			System.exit(0);
 		default:
-			System.out.println("Opção inválida, escolha outra:");
-			Utils.Pausar(2);
-			Mercado.Menu();
+			System.out.println("OpÃ¯Â¿Â½Ã¯Â¿Â½o invÃ¯Â¿Â½lida, escolha outra:");
+			Utilitario.Pausar(2);
+			Mercado.menu();
 		}
 	}
 	
-	public static void ListarProdutos() {
-		produtos.forEach(System.out::println);
-		System.out.println("\n");
-		Mercado.Menu();
+	public static void ListarProdutos() throws SQLException {
+		Statement lista_produtos = conexao.createStatement();
+		ResultSet resultado = lista_produtos.executeQuery(listar); //redundante.
+		while (resultado.next()) {
+			System.out.println("Produto: " + resultado.getString("nome") + "  |  PreÃ§o: " + resultado.getFloat("preco"));
+			//Utilitario.Pausar(1);
+		}
+		System.out.println("Listagem completa.");
+		Utilitario.Pausar(3);
+		Mercado.menu();
 	}
 	
-	public static void CadastrarProdutos() {
+	public static void CadastrarProdutos() throws SQLException {
 		String nome = null;
-		double preco = 0;
+		float preco = 0f;
 		System.out.println("");
 		System.out.print("Qual o nome do produto?: ");
 		nome = sc.nextLine();
@@ -89,94 +125,134 @@ public class Mercado {
 		System.out.print("Qual o Valor do produto '" + nome + "' ?:");
 		System.out.println("");
 		try {
-			preco = Double.parseDouble(sc.nextLine());
+			preco = Float.parseFloat(sc.nextLine());
 		}catch (Exception e) {
-			System.out.println("Valor incorreto!\n\nDigite um valor numérico.");
-			Utils.Pausar(2);
-			Mercado.Menu();
+			System.out.println("Valor incorreto!\n\nDigite um valor numÃ©rico.");
+			Utilitario.Pausar(3);
+			Mercado.menu();
+		} 
+		
+		PreparedStatement adiciona_produtos = null;
+		try {
+			adiciona_produtos = conexao.prepareStatement(inserir);
+			adiciona_produtos.setString(1, nome);
+			adiciona_produtos.setFloat(2, preco);
+			adiciona_produtos.execute();
+			System.out.println("O produto: " + nome + " foi cadastrado com sucesso!\n\n");
+
+		} catch (SQLException eX) {
+			System.out.println("Erro de query. \n" + eX.getMessage());
 		}
-		produtos.add(new Produto(nome, preco));
-		System.out.println("O produto: " + nome + " foi cadastrado com sucesso!");
-		Utils.Pausar(2);
+		//Utilitario.Pausar(3);
+		System.out.println("Deseja cadastrar um novo produto?\n<1 para 'SIM'    0 para 'NÃƒO'");
+		int escolha;
+		try {
+			escolha = Integer.parseInt(sc.nextLine()); // com nextInt o scanner printa o nome e preÃ§o de uma vez - revisar.
+			if (escolha == 1) {
+				CadastrarProdutos();
+			}else {	
+				Mercado.menu();
+			}	
+		}catch (Exception e) {
+			System.out.println("Ã‰ 1 ou 0!");
+			Mercado.menu();
+		}
+		
+	}	
+
 	
-		if (sc.nextInt() == 1) {
-			CadastrarProdutos();
-		}else {	Mercado.Menu();	}
-	}
-	public static void ComprarProdutos() {
-		if (Mercado.produtos.size() == 0) {
-			
+	public static void ComprarProdutos() throws SQLException {
+		ResultSet resultado = conexao.createStatement().executeQuery(listar);
+		if (!resultado.next()) {
+			System.out.println("NÃ£o hÃ¡ produtos em estoque.");
+			Utilitario.Pausar(3);
+			Mercado.menu();
 		}else {
 			int escolha_compra = 0;
 			boolean tem = false;
 			System.out.println();
-			System.out.println("Produtos disponíveis no mercado: ");
-			produtos.forEach(System.out::println);
-			System.out.println("Informe o código do produto:");
-
+			System.out.println("Produtos disponÃ­veis no mercado: ");
+			resultado = conexao.createStatement().executeQuery(listar);
+			while (resultado.next()) {
+				System.out.println("CÃ³digo : " + resultado.getInt("codigo") + "   |   Produto: " + resultado.getString("nome") + "  |  PreÃ§o: " + resultado.getFloat("preco"));
+			}
+			System.out.println("Informe o cÃ³digo do produto: ");
 			try {
 				escolha_compra = Integer.parseInt(sc.nextLine());
 			}catch (Exception e) {
-				System.out.println("Desculpe, não foi possível realizar a compra...");
-				Utils.Pausar(2);
-				Mercado.Menu();
+				System.out.println("Desculpe, nÃ¯Â¿Â½o foi possÃ¯Â¿Â½vel realizar a compra...");
+				Utilitario.Pausar(2);
+				Mercado.menu();
 			}
-			for (Produto p : Mercado.produtos) {
-				tem = false;
-				if (p.getCodigo() == escolha_compra) {
+			resultado = conexao.createStatement().executeQuery(listar);
+			while (resultado.next()) {
+				int codigo = resultado.getInt("codigo");
+				if ( codigo == escolha_compra) {
 					int qtd = 0;
 					try {
-						qtd = Mercado.carrinho.get(p);
-						Mercado.carrinho.put(p, qtd+1);
+						qtd = Mercado.carrinho.get(codigo).getQuantidade();
+						Mercado.carrinho.get(codigo).setQuantidade(qtd+1);
 					}catch (Exception e) {
-						Mercado.carrinho.put(p, 1);
+						Mercado.carrinho.add(new Carrinho(
+								resultado.getInt("codigo"), 
+								resultado.getString("nome"),
+								resultado.getFloat("preco"),
+								qtd+1));
+						System.out.println("O produto '" + resultado.getString("nome") + "' foi adicionado com sucesso!");
+						tem = true;
 					}
-					System.out.println("O produto" + p.getNome() + " foi adicionado com sucesso!");
-					tem = true;
-				}
-				if (tem) {
-					System.out.println("Deseja adicionar outros produtos?\n1 - para Sim.\n0 - para Não.");
-					int op = Integer.parseInt(Mercado.sc.nextLine());
-					if (op == 1) {
-						Mercado.ComprarProdutos();
+					if (tem) {
+						System.out.println("Deseja adicionar outros produtos?\n1 para 'SIM'.\n0 - para 'NÃƒO'.");
+						int escolha2 = Integer.parseInt(sc.nextLine());
+						if (escolha2 == 1) {
+							resultado = conexao.createStatement().executeQuery(listar);
+							Mercado.ComprarProdutos();
+							
+						}else {
+							System.out.println("Por favor, aguarde enquanto fechamos o seu pedido...");
+							Utilitario.Pausar(4);
+							FecharPedido();
+						}
 					}else {
-						System.out.println("Por favor, aguarde enquanto fechamos o seu pedido...");
-						FecharPedido();
+						System.out.println("Produto com cÃ³digo informado nÃ£o encontrado");
+						Utilitario.Pausar(2);
+						Mercado.menu();
 					}
-				}else {
-					System.out.println("Não foi encontrado o produto com o código informado.");
-					Utils.Pausar(2);
-					Mercado.Menu();
-				}
+				}			
 			}
 				
 		}
 	}
-	private static void FecharPedido() {
-		Double valorTotal = 0.0;
+
+	private static void FecharPedido() throws SQLException {
 		System.out.println("Produtos do Carrinho");
 		System.out.println("---------------------");
-		for (Produto p : Mercado.carrinho.keySet()) {
-			int qtd = Mercado.carrinho.get(p);
-			valorTotal +=p.getPreco() * qtd;
-			System.out.println(p);
-			System.out.println("Quantidade: " + qtd);
+		carrinho.forEach(c -> {
+			int qtd = c.getQuantidade();
+			valorTotal += qtd * c.getPreco();
+			
+			System.out.println(c.getNome() + " - Quantidade: " + qtd);
 			System.out.println("-----------");
-		}
-		System.out.println("Sua fatura é: " + Utils.doubleParaString(valorTotal));
+		});
+		System.out.println("Sua fatura Ã©: " + Utilitario.doubleParaString((double) valorTotal));
 		Mercado.carrinho.clear();
-		Mercado.Menu();
+		valorTotal = 0;
+		Mercado.menu();
+		
 	}
 	
-	public static void VisualizarCarrinho() {
+	public static void VisualizarCarrinho() throws SQLException {
 		if (Mercado.carrinho.size() == 0 ) {
-			System.out.println("Ainda não existem produtos no carrinho");
-			Utils.Pausar(2);
+			System.out.println("Ainda nÃ¯Â¿Â½o existem produtos no carrinho");
+			Utilitario.Pausar(2);
+			Mercado.menu();
 		}else {
 			System.out.println("Produtos no carrinho:");
-			for (Produto p : carrinho.keySet()){
-				System.out.println("Produto: " + p + "| preço: " + Mercado.carrinho.get(p));
-			}
+			carrinho.forEach(System.out::println);
+			Utilitario.Pausar(5);
+			Mercado.menu();
 		}
 	}
 }
+
+
